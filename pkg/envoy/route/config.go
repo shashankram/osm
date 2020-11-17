@@ -103,6 +103,10 @@ func createRoutes(routePolicyWeightedClustersMap map[string]trafficpolicy.RouteW
 		allowedMethods := sanitizeHTTPMethods(routePolicyWeightedClusters.HTTPRoute.Methods)
 		for _, method := range allowedMethods {
 			route := getRoute(routePolicyWeightedClusters.HTTPRoute.PathRegex, method, routePolicyWeightedClusters.HTTPRoute.Headers, routePolicyWeightedClusters.WeightedClusters, 100, direction)
+			if direction == InboundRoute {
+				perRouteConfig, _ := buildRBACFilter()
+				route.TypedPerFilterConfig = perRouteConfig
+			}
 			routes = append(routes, route)
 		}
 	}
@@ -110,6 +114,7 @@ func createRoutes(routePolicyWeightedClustersMap map[string]trafficpolicy.RouteW
 }
 
 func getRoute(pathRegex string, method string, headersMap map[string]string, weightedClusters set.Set, totalClustersWeight int, direction Direction) *xds_route.Route {
+
 	route := xds_route.Route{
 		Match: &xds_route.RouteMatch{
 			PathSpecifier: &xds_route.RouteMatch_SafeRegex{

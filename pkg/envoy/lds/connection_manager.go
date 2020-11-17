@@ -20,9 +20,14 @@ func getHTTPConnectionManager(routeName string, cfg configurator.Configurator) *
 	connManager := &xds_hcm.HttpConnectionManager{
 		StatPrefix: statPrefix,
 		CodecType:  xds_hcm.HttpConnectionManager_AUTO,
-		HttpFilters: []*xds_hcm.HttpFilter{{
-			Name: wellknown.Router,
-		}},
+		HttpFilters: []*xds_hcm.HttpFilter{
+			{
+				Name: wellknown.HTTPRoleBasedAccessControl,
+			},
+			{
+				Name: wellknown.Router,
+			},
+		},
 
 		RouteSpecifier: &xds_hcm.HttpConnectionManager_Rds{
 			Rds: &xds_hcm.Rds{
