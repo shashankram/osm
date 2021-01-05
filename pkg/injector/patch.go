@@ -7,7 +7,7 @@ import (
 
 	"github.com/google/uuid"
 	"gomodules.xyz/jsonpatch/v2"
-	"k8s.io/api/admission/v1beta1"
+	admissionv1 "k8s.io/api/admission/v1"
 	corev1 "k8s.io/api/core/v1"
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 
@@ -15,7 +15,7 @@ import (
 	"github.com/openservicemesh/osm/pkg/constants"
 )
 
-func (wh *mutatingWebhook) createPatch(pod *corev1.Pod, req *v1beta1.AdmissionRequest, proxyUUID uuid.UUID) ([]byte, error) {
+func (wh *mutatingWebhook) createPatch(pod *corev1.Pod, req *admissionv1.AdmissionRequest, proxyUUID uuid.UUID) ([]byte, error) {
 	namespace := req.Namespace
 
 	// Issue a certificate for the proxy sidecar - used for Envoy to connect to XDS (not Envoy-to-Envoy connections)
@@ -78,7 +78,7 @@ func (wh *mutatingWebhook) createPatch(pod *corev1.Pod, req *v1beta1.AdmissionRe
 	return json.Marshal(makePatches(req, pod))
 }
 
-func makePatches(req *v1beta1.AdmissionRequest, pod *corev1.Pod) []jsonpatch.JsonPatchOperation {
+func makePatches(req *admissionv1.AdmissionRequest, pod *corev1.Pod) []jsonpatch.JsonPatchOperation {
 	original := req.Object.Raw
 	current, err := json.Marshal(pod)
 	if err != nil {

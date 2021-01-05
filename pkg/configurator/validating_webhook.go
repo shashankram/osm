@@ -9,8 +9,8 @@ import (
 	"strconv"
 	"time"
 
-	"k8s.io/api/admission/v1beta1"
-	admissionv1beta1 "k8s.io/api/admissionregistration/v1beta1"
+	admissionv1 "k8s.io/api/admission/v1"
+	admissionRegv1 "k8s.io/api/admissionregistration/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -176,19 +176,21 @@ func (whc *webhookConfig) configMapHandler(w http.ResponseWriter, req *http.Requ
 	}
 }
 
-func (whc *webhookConfig) getAdmissionReqResp(admissionRequestBody []byte) (requestForNamespace string, admissionResp v1beta1.AdmissionReview) {
-	var admissionReq v1beta1.AdmissionReview
+func (whc *webhookConfig) getAdmissionReqResp(admissionRequestBody []byte) (string, admissionv1.AdmissionReview) {
+	var admissionResp admissionv1.AdmissionReview
+	var admissionReq admissionv1.AdmissionReview
 	if _, _, err := deserializer.Decode(admissionRequestBody, nil, &admissionReq); err != nil {
 		log.Error().Err(err).Msg("Error decoding admission request body")
 		admissionResp.Response = webhook.AdmissionError(err)
 	} else {
 		admissionResp.Response = whc.validateConfigMap(admissionReq.Request)
+		admissionResp.TypeMeta = admissionReq.TypeMeta
 	}
 
 	return admissionReq.Request.Namespace, admissionResp
 }
 
-func (whc *webhookConfig) validateConfigMap(req *v1beta1.AdmissionRequest) *v1beta1.AdmissionResponse {
+func (whc *webhookConfig) validateConfigMap(req *admissionv1.AdmissionRequest) *admissionv1.AdmissionResponse {
 	if req == nil {
 		log.Error().Msg("nil admission request")
 		return webhook.AdmissionError(errNilAdmissionRequest)
@@ -204,7 +206,7 @@ func (whc *webhookConfig) validateConfigMap(req *v1beta1.AdmissionRequest) *v1be
 	log.Trace().Msgf("Validation request: (new object: %v) (old object: %v)", string(req.Object.Raw), string(req.OldObject.Raw))
 
 	// Default response
-	resp := &v1beta1.AdmissionResponse{
+	resp := &admissionv1.AdmissionResponse{
 		Allowed: true,
 		Result:  &metav1.Status{Reason: ""},
 		UID:     req.UID,
@@ -222,7 +224,7 @@ func (whc *webhookConfig) validateConfigMap(req *v1beta1.AdmissionRequest) *v1be
 }
 
 // checkDefaultFields checks that all default fields for osm-config exist
-func checkDefaultFields(configMap corev1.ConfigMap, resp *v1beta1.AdmissionResponse) *v1beta1.AdmissionResponse {
+func checkDefaultFields(configMap corev1.ConfigMap, resp *admissionv1.AdmissionResponse) *admissionv1.AdmissionResponse {
 	data := make(map[string]struct{})
 	for field := range configMap.Data {
 		data[field] = struct{}{}
@@ -237,7 +239,7 @@ func checkDefaultFields(configMap corev1.ConfigMap, resp *v1beta1.AdmissionRespo
 }
 
 // validateFields checks whether the configmap field values are valid and rejects as necessary
-func (whc *webhookConfig) validateFields(configMap corev1.ConfigMap, resp *v1beta1.AdmissionResponse) *v1beta1.AdmissionResponse {
+func (whc *webhookConfig) validateFields(configMap corev1.ConfigMap, resp *admissionv1.AdmissionResponse) *admissionv1.AdmissionResponse {
 	for field, value := range configMap.Data {
 		if !checkBoolFields(field, value, boolFields) {
 			reasonForDenial(resp, mustBeBool, field)
@@ -302,7 +304,7 @@ func checkBoolFields(configMapField, configMapValue string, fields []string) boo
 }
 
 // reasonForDenial rejects and appends rejection reason(s) to v1beta1.AdmissionResponse
-func reasonForDenial(resp *v1beta1.AdmissionResponse, mustBe string, field string) {
+func reasonForDenial(resp *admissionv1.AdmissionResponse, mustBe string, field string) {
 	resp.Allowed = false
 	reason := "\n" + field + mustBe
 	resp.Result = &metav1.Status{
@@ -311,17 +313,20 @@ func reasonForDenial(resp *v1beta1.AdmissionResponse, mustBe string, field strin
 }
 
 // getPartialValidatingWebhookConfiguration returns only the portion of the ValidatingWebhookConfiguration that needs to be updated.
-func getPartialValidatingWebhookConfiguration(webhookName string, cert certificate.Certificater, webhookConfigName string) admissionv1beta1.ValidatingWebhookConfiguration {
-	return admissionv1beta1.ValidatingWebhookConfiguration{
+func getPartialValidatingWebhookConfiguration(webhookName string, cert certificate.Certificater, webhookConfigName string) admissionRegv1.ValidatingWebhookConfiguration {
+	sideEffect := admissionRegv1.SideEffectClassNone
+	return admissionRegv1.ValidatingWebhookConfiguration{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: webhookConfigName,
 		},
-		Webhooks: []admissionv1beta1.ValidatingWebhook{
+		Webhooks: []admissionRegv1.ValidatingWebhook{
 			{
 				Name: webhookName,
-				ClientConfig: admissionv1beta1.WebhookClientConfig{
+				ClientConfig: admissionRegv1.WebhookClientConfig{
 					CABundle: cert.GetCertificateChain(),
 				},
+				AdmissionReviewVersions: []string{"v1"},
+				SideEffects:             &sideEffect,
 			},
 		},
 	}
@@ -330,7 +335,7 @@ func getPartialValidatingWebhookConfiguration(webhookName string, cert certifica
 // updateValidatingWebhookCABundle updates the existing ValidatingWebhookConfiguration with the CA this OSM instance runs with.
 // It is necessary to perform this patch because the original ValidatingWebhookConfig YAML does not contain the root certificate.
 func updateValidatingWebhookCABundle(cert certificate.Certificater, webhookName string, clientSet kubernetes.Interface) error {
-	vwc := clientSet.AdmissionregistrationV1beta1().ValidatingWebhookConfigurations()
+	vwc := clientSet.AdmissionregistrationV1().ValidatingWebhookConfigurations()
 	if _, err := vwc.Get(context.Background(), webhookName, metav1.GetOptions{}); err != nil {
 		log.Error().Err(err).Msgf("Error getting ValidatingWebhookConfiguration %s; Will not update CA Bundle for webhook", webhookName)
 		return err

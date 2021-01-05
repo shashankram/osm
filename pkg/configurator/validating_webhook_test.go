@@ -19,8 +19,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"k8s.io/client-go/kubernetes/fake"
 
-	"k8s.io/api/admission/v1beta1"
-	admissionv1beta1 "k8s.io/api/admissionregistration/v1beta1"
+	admissionv1 "k8s.io/api/admission/v1"
+	admissionRegv1 "k8s.io/api/admissionregistration/v1"
 	corev1 "k8s.io/api/core/v1"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -116,10 +116,10 @@ func TestGetAdmissionReqResp(t *testing.T) {
 
 	requestForNamespace, admissionResp := whc.getAdmissionReqResp([]byte(admissionRequestBody))
 
-	expectedAdmissionResponse := v1beta1.AdmissionReview{
+	expectedAdmissionResponse := admissionv1.AdmissionReview{
 		TypeMeta: metav1.TypeMeta{Kind: "", APIVersion: ""},
 		Request:  nil,
-		Response: &v1beta1.AdmissionResponse{
+		Response: &admissionv1.AdmissionResponse{
 			UID:              "11111111-2222-3333-4444-555555555555",
 			Allowed:          true,
 			Result:           &v1.Status{},
@@ -137,13 +137,13 @@ func TestValidateConfigMap(t *testing.T) {
 
 	testCases := []struct {
 		testName string
-		req      *v1beta1.AdmissionRequest
-		expRes   *v1beta1.AdmissionResponse
+		req      *admissionv1.AdmissionRequest
+		expRes   *admissionv1.AdmissionResponse
 	}{
 		{
 			testName: "Admission request is nil",
 			req:      nil,
-			expRes: &v1beta1.AdmissionResponse{
+			expRes: &admissionv1.AdmissionResponse{
 				Result: &metav1.Status{
 					Message: errors.New("nil admission request").Error(),
 				},
@@ -151,12 +151,12 @@ func TestValidateConfigMap(t *testing.T) {
 		},
 		{
 			testName: "Error decoding request",
-			req: &v1beta1.AdmissionRequest{
+			req: &admissionv1.AdmissionRequest{
 				Object: runtime.RawExtension{
 					Raw: []byte("asdf"),
 				},
 			},
-			expRes: &v1beta1.AdmissionResponse{
+			expRes: &admissionv1.AdmissionResponse{
 				Result: &metav1.Status{
 					Message: "couldn't get version/kind; json parse error: json: cannot unmarshal string into Go value of type struct { APIVersion string \"json:\\\"apiVersion,omitempty\\\"\"; Kind string \"json:\\\"kind,omitempty\\\"\" }",
 				},
@@ -164,7 +164,7 @@ func TestValidateConfigMap(t *testing.T) {
 		},
 		{
 			testName: "Allow updates to configmaps that are not osm-config",
-			req: &v1beta1.AdmissionRequest{
+			req: &admissionv1.AdmissionRequest{
 				UID: "1234",
 				Kind: metav1.GroupVersionKind{
 					Version: "/v1",
@@ -172,7 +172,7 @@ func TestValidateConfigMap(t *testing.T) {
 				},
 				Name: "notOsmConfig",
 			},
-			expRes: &v1beta1.AdmissionResponse{
+			expRes: &admissionv1.AdmissionResponse{
 				Allowed: true,
 				Result:  &metav1.Status{Reason: ""},
 				UID:     "1234",
@@ -189,7 +189,7 @@ func TestValidateConfigMap(t *testing.T) {
 
 func TestCheckDefaultFields(t *testing.T) {
 	assert := assert.New(t)
-	resp := &v1beta1.AdmissionResponse{
+	resp := &admissionv1.AdmissionResponse{
 		Allowed: true,
 		Result:  &metav1.Status{Reason: ""},
 	}
@@ -197,7 +197,7 @@ func TestCheckDefaultFields(t *testing.T) {
 	testCases := []struct {
 		testName  string
 		configMap corev1.ConfigMap
-		expRes    *v1beta1.AdmissionResponse
+		expRes    *admissionv1.AdmissionResponse
 	}{
 		{
 			testName: "Contains all default fields",
@@ -216,7 +216,7 @@ func TestCheckDefaultFields(t *testing.T) {
 					"tracing_endpoint":               "",
 				},
 			},
-			expRes: &v1beta1.AdmissionResponse{
+			expRes: &admissionv1.AdmissionResponse{
 				Allowed: true,
 				Result:  &metav1.Status{Reason: ""},
 			},
@@ -229,7 +229,7 @@ func TestCheckDefaultFields(t *testing.T) {
 					"enable_debug_server": "",
 				},
 			},
-			expRes: &v1beta1.AdmissionResponse{
+			expRes: &admissionv1.AdmissionResponse{
 				Allowed: false,
 				Result:  &metav1.Status{Reason: doesNotContainDef},
 			},
@@ -247,7 +247,7 @@ func TestCheckDefaultFields(t *testing.T) {
 
 func TestValidateFields(t *testing.T) {
 	assert := assert.New(t)
-	resp := &v1beta1.AdmissionResponse{
+	resp := &admissionv1.AdmissionResponse{
 		Allowed: true,
 		Result:  &metav1.Status{Reason: ""},
 	}
@@ -266,7 +266,7 @@ func TestValidateFields(t *testing.T) {
 	testCases := []struct {
 		testName  string
 		configMap corev1.ConfigMap
-		expRes    *v1beta1.AdmissionResponse
+		expRes    *admissionv1.AdmissionResponse
 	}{
 		{
 			testName: "Accpet valid configMap update",
@@ -277,7 +277,7 @@ func TestValidateFields(t *testing.T) {
 					"service_cert_validity_duration": "24h",
 					"tracing_port":                   "9411"},
 			},
-			expRes: &v1beta1.AdmissionResponse{
+			expRes: &admissionv1.AdmissionResponse{
 				Allowed: true,
 				Result:  &metav1.Status{Reason: ""},
 			},
@@ -295,7 +295,7 @@ func TestValidateFields(t *testing.T) {
 					"envoy_log_level": "envoy",
 					"tracing_port":    "123456"},
 			},
-			expRes: &v1beta1.AdmissionResponse{
+			expRes: &admissionv1.AdmissionResponse{
 				Allowed: false,
 				Result: &metav1.Status{
 					Reason: mustBeBool + mustBeValidLogLvl + mustBeInPortRange + cannotChangeMetadata,
@@ -309,7 +309,7 @@ func TestValidateFields(t *testing.T) {
 					"service_cert_validity_duration": "1hw",
 					"tracing_port":                   "1.00"},
 			},
-			expRes: &v1beta1.AdmissionResponse{
+			expRes: &admissionv1.AdmissionResponse{
 				Allowed: false,
 				Result: &metav1.Status{
 					Reason: mustBeValidTime + mustbeInt,
@@ -363,14 +363,14 @@ func TestGetPartialValidatingWebhookConfiguration(t *testing.T) {
 	webhookConfigName := "-webhook-config-name-"
 	res := getPartialValidatingWebhookConfiguration(ValidatingWebhookName, cert, webhookConfigName)
 
-	expectedRes := admissionv1beta1.ValidatingWebhookConfiguration{
+	expectedRes := admissionRegv1.ValidatingWebhookConfiguration{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: webhookConfigName,
 		},
-		Webhooks: []admissionv1beta1.ValidatingWebhook{
+		Webhooks: []admissionRegv1.ValidatingWebhook{
 			{
 				Name: ValidatingWebhookName,
-				ClientConfig: admissionv1beta1.WebhookClientConfig{
+				ClientConfig: admissionRegv1.WebhookClientConfig{
 					CABundle: cert.GetCertificateChain(),
 				},
 			},
@@ -386,15 +386,15 @@ func TestUpdateValidatingWebhookCABundle(t *testing.T) {
 	testWebhookServiceNamespace := "test-namespace"
 	testWebhookServiceName := "test-service-name"
 	testWebhookServicePath := "/path"
-	kubeClient := fake.NewSimpleClientset(&admissionv1beta1.ValidatingWebhookConfiguration{
+	kubeClient := fake.NewSimpleClientset(&admissionRegv1.ValidatingWebhookConfiguration{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: webhookName,
 		},
-		Webhooks: []admissionv1beta1.ValidatingWebhook{
+		Webhooks: []admissionRegv1.ValidatingWebhook{
 			{
 				Name: ValidatingWebhookName,
-				ClientConfig: admissionv1beta1.WebhookClientConfig{
-					Service: &admissionv1beta1.ServiceReference{
+				ClientConfig: admissionRegv1.WebhookClientConfig{
+					Service: &admissionRegv1.ServiceReference{
 						Namespace: testWebhookServiceNamespace,
 						Name:      testWebhookServiceName,
 						Path:      &testWebhookServicePath,

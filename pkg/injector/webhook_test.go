@@ -14,8 +14,8 @@ import (
 	mapset "github.com/deckarep/golang-set"
 	"github.com/golang/mock/gomock"
 	"github.com/google/uuid"
-	"k8s.io/api/admission/v1beta1"
-	admissionv1beta1 "k8s.io/api/admissionregistration/v1beta1"
+	admissionv1 "k8s.io/api/admission/v1"
+	admissionRegv1 "k8s.io/api/admissionregistration/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes/fake"
@@ -36,15 +36,15 @@ var _ = Describe("Test MutatingWebhookConfiguration patch", func() {
 		testWebhookServiceNamespace := "test-namespace"
 		testWebhookServiceName := "test-service-name"
 		testWebhookServicePath := "/path"
-		kubeClient := fake.NewSimpleClientset(&admissionv1beta1.MutatingWebhookConfiguration{
+		kubeClient := fake.NewSimpleClientset(&admissionRegv1.MutatingWebhookConfiguration{
 			ObjectMeta: metav1.ObjectMeta{
 				Name: webhookName,
 			},
-			Webhooks: []admissionv1beta1.MutatingWebhook{
+			Webhooks: []admissionRegv1.MutatingWebhook{
 				{
 					Name: MutatingWebhookName,
-					ClientConfig: admissionv1beta1.WebhookClientConfig{
-						Service: &admissionv1beta1.ServiceReference{
+					ClientConfig: admissionRegv1.WebhookClientConfig{
+						Service: &admissionRegv1.ServiceReference{
 							Namespace: testWebhookServiceNamespace,
 							Name:      testWebhookServiceName,
 							Path:      &testWebhookServicePath,
@@ -59,7 +59,7 @@ var _ = Describe("Test MutatingWebhookConfiguration patch", func() {
 			},
 		})
 
-		mwc := kubeClient.AdmissionregistrationV1beta1().MutatingWebhookConfigurations()
+		mwc := kubeClient.AdmissionregistrationV1().MutatingWebhookConfigurations()
 
 		It("checks if the hook exists", func() {
 			err := webhookExists(mwc, webhookName)
@@ -79,7 +79,7 @@ var _ = Describe("Test MutatingWebhookConfiguration patch", func() {
 		})
 
 		It("ensures webhook is configured correctly", func() {
-			webhooks, err := kubeClient.AdmissionregistrationV1beta1().MutatingWebhookConfigurations().List(context.TODO(), metav1.ListOptions{})
+			webhooks, err := kubeClient.AdmissionregistrationV1().MutatingWebhookConfigurations().List(context.TODO(), metav1.ListOptions{})
 			Expect(err).ToNot(HaveOccurred())
 			Expect(len(webhooks.Items)).To(Equal(1))
 
@@ -561,10 +561,10 @@ var _ = Describe("Testing Injector Functions", func() {
 
 		Expect(requestForNamespace).To(Equal("default"))
 
-		expectedAdmissionResponse := v1beta1.AdmissionReview{
+		expectedAdmissionResponse := admissionv1.AdmissionReview{
 			TypeMeta: metav1.TypeMeta{Kind: "", APIVersion: ""},
 			Request:  nil,
-			Response: &v1beta1.AdmissionResponse{
+			Response: &admissionv1.AdmissionResponse{
 				UID:              "11111111-2222-3333-4444-555555555555",
 				Allowed:          true,
 				Result:           nil,
@@ -607,7 +607,7 @@ var _ = Describe("Testing Injector Functions", func() {
 		// Action !!
 		actual := wh.mutate(nil, proxyUUID)
 
-		expected := v1beta1.AdmissionResponse{
+		expected := admissionv1.AdmissionResponse{
 			Result: &metav1.Status{
 				Message: "nil admission request",
 			},
@@ -616,14 +616,14 @@ var _ = Describe("Testing Injector Functions", func() {
 	})
 
 	It("patches admission response", func() {
-		admRes := v1beta1.AdmissionResponse{
+		admRes := admissionv1.AdmissionResponse{
 			Patch: []byte(""),
 		}
 		patchBytes := []byte("abc")
 		patchAdmissionResponse(&admRes, patchBytes)
 
-		expectedPatchType := v1beta1.PatchTypeJSONPatch
-		expected := v1beta1.AdmissionResponse{
+		expectedPatchType := admissionv1.PatchTypeJSONPatch
+		expected := admissionv1.AdmissionResponse{
 			Patch:     []byte("abc"),
 			PatchType: &expectedPatchType,
 		}
@@ -636,14 +636,14 @@ var _ = Describe("Testing Injector Functions", func() {
 
 		actual := getPartialMutatingWebhookConfiguration(cert, webhookConfigName)
 
-		expected := admissionv1beta1.MutatingWebhookConfiguration{
+		expected := admissionRegv1.MutatingWebhookConfiguration{
 			ObjectMeta: metav1.ObjectMeta{
 				Name: "-webhook-config-name-",
 			},
-			Webhooks: []admissionv1beta1.MutatingWebhook{
+			Webhooks: []admissionRegv1.MutatingWebhook{
 				{
 					Name: MutatingWebhookName,
-					ClientConfig: admissionv1beta1.WebhookClientConfig{
+					ClientConfig: admissionRegv1.WebhookClientConfig{
 						CABundle: cert.GetCertificateChain(),
 					},
 				},
