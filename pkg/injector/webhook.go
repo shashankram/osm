@@ -158,7 +158,7 @@ func (wh *mutatingWebhook) getAdmissionReqResp(proxyUUID uuid.UUID, admissionReq
 
 // podCreationHandler is a MutatingWebhookConfiguration handler exclusive to POD CREATE events.
 func (wh *mutatingWebhook) podCreationHandler(w http.ResponseWriter, req *http.Request) {
-	log.Trace().Msgf("Received mutating webhook request: Method=%v, URL=%v", req.Method, req.URL)
+	log.Trace().Msgf("Received mutating webhook request: Host=%s, Method=%s, URL=%s", req.Host, req.Method, req.URL)
 
 	// For debug/profiling purposes
 	if log.GetLevel() == zerolog.DebugLevel {
