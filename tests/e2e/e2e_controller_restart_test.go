@@ -29,6 +29,7 @@ func testHTTPTrafficWithControllerRestart() {
 
 		It("Tests HTTP traffic for client pod -> server pod", func() {
 			// Install OSM
+			Td.IgnoreRestarts = true // test restarts osm-controller
 			Expect(Td.InstallOSM(Td.GetOSMInstallOpts())).To(Succeed())
 
 			// Create Test NS
